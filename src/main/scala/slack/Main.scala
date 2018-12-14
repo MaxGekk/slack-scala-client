@@ -9,6 +9,7 @@ trait Command
 case object UnknowCommand extends Command
 case class ExecCommand(command: String) extends Command
 case object StatusCommand extends Command
+case object ResetCommand extends Command
 
 case class ExecutionContext(id: String, lastCommandId: Option[String])
 
@@ -32,10 +33,12 @@ object Main extends App {
     val status = """(\S+)\s+status""".r
     val qq = """^(\S+)\s+qq\s+```\s*(.*)\s*```""".r
     val qqShort = """^(\S+)\s+qq\s+`(.*)`""".r
+    val reset = """(\S+)\s+reset""".r
     text match {
       case status(_) => StatusCommand
       case qq(_, command) => ExecCommand(command)
       case qqShort(_, command) => ExecCommand(command)
+      case reset(_) => ResetCommand
       case _ => UnknowCommand
     }
   }
@@ -93,14 +96,19 @@ object Main extends App {
                 case Some(ExecutionContext(contextId, Some(commandId))) =>
                   try {
                     val res = shard.command.status(clusterId, contextId, commandId)
-                    res.status + Option(res.results.data).map(d => s"""\n```${d}```""").getOrElse("")
+                    val results = Option(res.results)
+                    res.status + results.flatMap(d => Option(s"""\n```${d.data}```""")).getOrElse("")
                   } catch {
                     case e: Exception =>
-                      destroyContext(lang)
-                      s"Oops, I got the exception: ${e.getClass.getName}: ${e.getMessage}"
+                      s"""Oops, I got the exception:
+                         | contextId: ${contextId} commandId: ${commandId}
+                         |${e.getClass.getName}: ${e.getStackTrace.mkString("\n")}""".stripMargin
                   }
               }
               client.sendMessage(message.channel, answer)
+            case ResetCommand =>
+              destroyContext(lang)
+              s"Done, new context: ${getContext(lang)}"
             case _ =>
               client.sendMessage(message.channel, "What do you mean?")
           }

@@ -42,4 +42,10 @@ class CommandParsingSuite extends FunSuite {
     val command = parseCommand(text)
     assert(command == ExecCommand(s"""spark.sql("show databases").show()"""))
   }
-}
+
+  test("reset") {
+    val text =
+      s"""<@UESRZGZSQ> reset""".stripMargin
+    val command = parseCommand(text)
+    assert(command == ResetCommand)
+  }}
