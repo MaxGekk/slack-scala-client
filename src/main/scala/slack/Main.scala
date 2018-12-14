@@ -5,6 +5,11 @@ import com.databricks._
 import com.typesafe.config.ConfigFactory
 import slack.rtm.SlackRtmClient
 
+trait Command
+case object UnknowCommand extends Command
+case class ExecCommand(command: String) extends Command
+case object StatusCommand extends Command
+
 object Main extends App {
   val conf = ConfigFactory.load("db")
 
@@ -22,6 +27,16 @@ object Main extends App {
 
   val map = scala.collection.mutable.Map[String, String]()
 
+  def parseCommand(text: String): Command = {
+    val status = """(\S+)\s+status""".r
+    val qq = """^(\S+)\s+qq\s+```\s*(.*)\s*```""".r
+    text match {
+      case status(_) => StatusCommand
+      case qq(_, command) => ExecCommand(command)
+      case _ => UnknowCommand
+    }
+  }
+
   client.onEvent { event =>
     system.log.info("Received new event: {}", event)
     import models._
@@ -29,10 +44,9 @@ object Main extends App {
       case message: Message => {
         val mentionedIds = SlackUtil.extractMentionedIds(message.text)
         if (mentionedIds.contains(selfId)) {
-          val split = message.text.split("\n").toSeq
-          system.log.info(split.mkString("=>", ",", "<="))
-          split match {
-            case Seq(first, command) if first.contains("qq") =>
+          val command = parseCommand(message.text)
+          command match {
+            case ExecCommand(command) =>
               val answer = try {
                 val IdResult(commandId) = shard.command.execute(
                   "scala", clusterId, contextId, command)
@@ -40,34 +54,24 @@ object Main extends App {
                 s"Hey <@${message.user}>, got it ..."
               } catch {
                 case e: Throwable =>
-                  s"I got the exception: ${e.toString}"
+                  s"Can you do something with that? ${e.getClass.getName}: ${e.getMessage}"
               }
               client.sendMessage(message.channel, answer)
-            case Seq(first) if first.contains("status") =>
+            case StatusCommand =>
               val answer = map.get("scala") match {
-                case None => "What's up?"
+                case None => "I have nothing to say to you"
                 case Some(commandId) =>
                   try {
                     val res = shard.command.status(clusterId, contextId, commandId)
-                    system.log.info("res = " + res)
-                    res.status + Option(res.results.data).map("\n" + _).getOrElse("")
+                    res.status + Option(res.results.data).map(d => s"""\n```${d}```""").getOrElse("")
                   } catch {
                     case e: Throwable =>
-                      s"I got the exception: ${e.toString}"
+                      s"Oops, I got the exception: ${e.getClass.getName}: ${e.getMessage}"
                   }
               }
               client.sendMessage(message.channel, answer)
-            case Seq(first) if first.contains("restart") =>
-              client.sendMessage(message.channel, s"Sure <@${message.user}>")
-              try {
-                shard.ec.destroy(clusterId, contextId)
-              } catch {
-                case e: Throwable =>
-                  client.sendMessage(message.channel, s"I got the exception: ${e.toString}")
-              }
-              val result = shard.ec.create("scala", clusterId)
-              contextId = result.id
-            case unknown => system.log.info(unknown.toString)
+            case _ =>
+              client.sendMessage(message.channel, "What do you mean?")
           }
         }
       }

@@ -59,7 +59,7 @@ object Dependencies {
 
   val jodaConvert = "org.joda" % "joda-convert" % "1.8.1" // https://stackoverflow.com/a/13856382/118587
 
-  val libricks = "default" %% "libricks" % "0.7"
+  val libricks = "default" %% "libricks" % "0.8"
 
   val akkaDependencies = Seq(akkaHttp)
   val miscDependencies = Seq(playJson, scalaAsync, jodaConvert, libricks)
