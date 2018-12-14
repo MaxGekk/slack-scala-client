@@ -11,9 +11,16 @@ class CommandParsingSuite extends FunSuite {
     assert(command == StatusCommand)
   }
 
-  test("parse command 1") {
+  test("parse short command") {
     val text =
-      s"""<@UESRZGZSQ> qq ```spark.sql("show databases").show()```""".stripMargin
+      s"""<@UESRZGZSQ> qq `spark.sql("show databases").show()`"""
+    val command = parseCommand(text)
+    assert(command == ExecCommand("""spark.sql("show databases").show()"""))
+  }
+
+  test("parse command") {
+    val text =
+      s"""<@UESRZGZSQ> qq ```spark.sql("show databases").show()```"""
     val command = parseCommand(text)
     assert(command == ExecCommand("""spark.sql("show databases").show()"""))
   }

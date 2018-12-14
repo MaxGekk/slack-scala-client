@@ -10,14 +10,15 @@ case object UnknowCommand extends Command
 case class ExecCommand(command: String) extends Command
 case object StatusCommand extends Command
 
+case class ExecutionContext(id: String, lastCommandId: Option[String])
+
 object Main extends App {
   val conf = ConfigFactory.load("db")
 
   val clusterId: String = conf.getString("shard.cluster")
   val shard = Shard(conf).connect
-  val result = shard.ec.create("scala", clusterId)
-  var contextId = result.id
-
+  val lang = "scala"
+  
   val token = conf.getString("slack.token")
   implicit val system = ActorSystem("slack")
   implicit val ec = system.dispatcher
@@ -25,15 +26,42 @@ object Main extends App {
   val client = SlackRtmClient(token)
   val selfId = client.state.self.id
 
-  val map = scala.collection.mutable.Map[String, String]()
+  val contexts = scala.collection.mutable.Map[String, ExecutionContext]()
 
   def parseCommand(text: String): Command = {
     val status = """(\S+)\s+status""".r
     val qq = """^(\S+)\s+qq\s+```\s*(.*)\s*```""".r
+    val qqShort = """^(\S+)\s+qq\s+`(.*)`""".r
     text match {
       case status(_) => StatusCommand
       case qq(_, command) => ExecCommand(command)
+      case qqShort(_, command) => ExecCommand(command)
       case _ => UnknowCommand
+    }
+  }
+
+  def getContext(language: String): ExecutionContext = {
+    contexts.get(language) match {
+      case None =>
+        val result = shard.ec.create(language, clusterId)
+        val id = result.id
+        val context = ExecutionContext(id, None)
+        contexts.update(language, ExecutionContext(id, None))
+        context
+      case Some(ec) => ec
+    }
+  }
+
+  def destroyContext(language: String): Unit = {
+    contexts.get(language).foreach { context =>
+      try {
+        shard.ec.destroy(clusterId, context.id)
+      } catch {
+        case e: Exception =>
+          system.log.info(s"Tried to remove execution context but failed: ${e.toString}")
+      } finally {
+        contexts.remove(language)
+      }
     }
   }
 
@@ -48,24 +76,27 @@ object Main extends App {
           command match {
             case ExecCommand(command) =>
               val answer = try {
-                val IdResult(commandId) = shard.command.execute(
-                  "scala", clusterId, contextId, command)
-                map.update("scala", commandId)
+                val ec = getContext(lang)
+                val IdResult(commandId) = shard.command.execute(lang, clusterId, ec.id, command)
+                contexts.update(lang, ec.copy(lastCommandId = Some(commandId)))
                 s"Hey <@${message.user}>, got it ..."
               } catch {
-                case e: Throwable =>
+                case e: Exception =>
+                  destroyContext(lang)
                   s"Can you do something with that? ${e.getClass.getName}: ${e.getMessage}"
               }
               client.sendMessage(message.channel, answer)
             case StatusCommand =>
-              val answer = map.get("scala") match {
-                case None => "I have nothing to say to you"
-                case Some(commandId) =>
+              val answer = contexts.get(lang) match {
+                case None => "I don't any clue what you want."
+                case Some(ExecutionContext(_, None)) => "What's up?"
+                case Some(ExecutionContext(contextId, Some(commandId))) =>
                   try {
                     val res = shard.command.status(clusterId, contextId, commandId)
                     res.status + Option(res.results.data).map(d => s"""\n```${d}```""").getOrElse("")
                   } catch {
-                    case e: Throwable =>
+                    case e: Exception =>
+                      destroyContext(lang)
                       s"Oops, I got the exception: ${e.getClass.getName}: ${e.getMessage}"
                   }
               }
