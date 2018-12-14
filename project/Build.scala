@@ -6,8 +6,8 @@ import sbtrelease._
 object BuildSettings {
   val buildOrganization = "com.github.slack-scala-client"
   val buildVersion      = "0.2.5"
-  val buildScalaVersion = "2.12.7"
-  val buildCrossScalaVersions = Seq("2.11.12", "2.12.7")
+  val buildScalaVersion = "2.12.8"
+  val buildCrossScalaVersions = Seq("2.11.12", "2.12.8")
 
   val settings = Seq (
     organization       := buildOrganization,
@@ -59,8 +59,10 @@ object Dependencies {
 
   val jodaConvert = "org.joda" % "joda-convert" % "1.8.1" // https://stackoverflow.com/a/13856382/118587
 
+  val libricks = "default" %% "libricks" % "0.7"
+
   val akkaDependencies = Seq(akkaHttp)
-  val miscDependencies = Seq(playJson, scalaAsync, jodaConvert)
+  val miscDependencies = Seq(playJson, scalaAsync, jodaConvert, libricks)
   val testDependencies = Seq(scalatest)
 
   val allDependencies = akkaDependencies ++ miscDependencies ++ testDependencies

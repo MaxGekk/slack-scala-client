@@ -1,3 +1,5 @@
+resolvers += Resolver.bintrayRepo("maxgekk", "maven")
+
 lazy val slackScalaClient =
   Project ("slack-scala-client", file("."))
     .settings ( BuildSettings.settings : _* )
