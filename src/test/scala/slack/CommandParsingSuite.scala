@@ -8,21 +8,42 @@ class CommandParsingSuite extends FunSuite {
     val text =
       s"""<@UESRZGZSQ> status""".stripMargin
     val command = parseCommand(text)
-    assert(command == StatusCommand)
+    assert(command == StatusCommand("scala"))
+  }
+
+  test("parse status - python") {
+    val text =
+      s"""<@UESRZGZSQ> status python""".stripMargin
+    val command = parseCommand(text)
+    assert(command == StatusCommand("python"))
   }
 
   test("parse short command") {
     val text =
       s"""<@UESRZGZSQ> qq `spark.sql("show databases").show()`"""
     val command = parseCommand(text)
-    assert(command == ExecCommand("""spark.sql("show databases").show()"""))
+    assert(command == ExecCommand("""spark.sql("show databases").show()""", "scala"))
+  }
+
+  test("parse short command - python") {
+    val text =
+      s"""<@UESRZGZSQ> python `spark.sql('show databases').show()`"""
+    val command = parseCommand(text)
+    assert(command == ExecCommand("""spark.sql('show databases').show()""", "python"))
   }
 
   test("parse command") {
     val text =
       s"""<@UESRZGZSQ> qq ```spark.sql("show databases").show()```"""
     val command = parseCommand(text)
-    assert(command == ExecCommand("""spark.sql("show databases").show()"""))
+    assert(command == ExecCommand("""spark.sql("show databases").show()""", "scala"))
+  }
+
+  test("parse command - r") {
+    val text =
+      s"""<@UESRZGZSQ> r ```1```"""
+    val command = parseCommand(text)
+    assert(command == ExecCommand("""1""", "r"))
   }
 
   test("parse multiLine qq") {
@@ -30,7 +51,15 @@ class CommandParsingSuite extends FunSuite {
       s"""<@UESRZGZSQ> qq
          |```spark.sql("show databases").show()```""".stripMargin
     val command = parseCommand(text)
-    assert(command == ExecCommand(s"""spark.sql("show databases").show()"""))
+    assert(command == ExecCommand(s"""spark.sql("show databases").show()""", "scala"))
+  }
+
+  test("parse multiLine sql") {
+    val text =
+      s"""<@UESRZGZSQ> sql
+         |```show databases```""".stripMargin
+    val command = parseCommand(text)
+    assert(command == ExecCommand(s"""show databases""", "sql"))
   }
 
   test("parse multiLine qq command") {
@@ -40,7 +69,7 @@ class CommandParsingSuite extends FunSuite {
          |spark.sql("show databases").show()
          |```""".stripMargin
     val command = parseCommand(text)
-    assert(command == ExecCommand(s"""spark.sql("show databases").show()"""))
+    assert(command == ExecCommand(s"""spark.sql("show databases").show()""", "scala"))
   }
 
   test("reset") {
@@ -53,6 +82,12 @@ class CommandParsingSuite extends FunSuite {
   test("cancel") {
     val text = """<@UESRZGZSQ> cancel"""
     val command = parseCommand(text)
-    assert(command == CancelCommand)
+    assert(command == CancelCommand("scala"))
+  }
+
+  test("cancel - r") {
+    val text = """<@UESRZGZSQ> cancel r"""
+    val command = parseCommand(text)
+    assert(command == CancelCommand("r"))
   }
 }

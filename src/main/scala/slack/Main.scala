@@ -7,9 +7,9 @@ import slack.rtm.SlackRtmClient
 
 trait Command
 case object UnknowCommand extends Command
-case class ExecCommand(command: String) extends Command
-case object StatusCommand extends Command
-case object CancelCommand extends Command
+case class ExecCommand(command: String, lang: String) extends Command
+case class StatusCommand(lang: String) extends Command
+case class CancelCommand(lang: String) extends Command
 case object ResetCommand extends Command
 case object HelpCommand extends Command
 
@@ -20,8 +20,7 @@ object Main extends App {
 
   val clusterId: String = conf.getString("shard.cluster")
   val shard = Shard(conf).connect
-  val lang = "scala"
-  
+
   val token = conf.getString("slack.token")
   implicit val system = ActorSystem("slack")
   implicit val ec = system.dispatcher
@@ -32,19 +31,24 @@ object Main extends App {
   val contexts = scala.collection.mutable.Map[String, ExecutionContext]()
 
   def parseCommand(text: String): Command = {
-    val status = """(\S+)\s+status""".r
-    val qq = """^(\S+)\s+qq\s+```\s*(.*)\s*```""".r
-    val qqShort = """^(\S+)\s+qq\s+`(.*)`""".r
+    val defaultLang = "scala"
+    val status = """(\S+)\s+status\s*(scala|python|r|sql)?""".r
+    val qq = """^(\S+)\s+(qq|scala|python|r|sql)\s+```\s*(.*)\s*```""".r
+    val qqShort = """^(\S+)\s+(qq|scala|python|r|sql)\s+`(.*)`""".r
     val reset = """(\S+)\s+reset""".r
-    val cancel = """(\S+)\s+cancel""".r
+    val cancel = """(\S+)\s+cancel\s*(scala|python|r|sql)?""".r
     val help = """(\S+)\s+help""".r
 
     text match {
-      case status(_) => StatusCommand
-      case qq(_, command) => ExecCommand(command)
-      case qqShort(_, command) => ExecCommand(command)
+      case status(_, null) => StatusCommand(defaultLang)
+      case status(_, lang) => StatusCommand(lang)
+      case qq(_, "qq", command) => ExecCommand(command, defaultLang)
+      case qq(_, lang, command) => ExecCommand(command, lang)
+      case qqShort(_, "qq", command) => ExecCommand(command, defaultLang)
+      case qqShort(_, lang, command) => ExecCommand(command, lang)
       case reset(_) => ResetCommand
-      case cancel(_) => CancelCommand
+      case cancel(_, null) => CancelCommand(defaultLang)
+      case cancel(_, lang) => CancelCommand(lang)
       case help(_) => HelpCommand
       case _ => UnknowCommand
     }
@@ -90,7 +94,7 @@ object Main extends App {
     }
   }
 
-  def checkStatus(channel: String): Unit = {
+  def checkStatus(channel: String, lang: String): Unit = {
     val answer = contexts.get(lang) match {
       case None => "I don't any clue what you want."
       case Some(ExecutionContext(_, None)) => "What's up?"
@@ -142,7 +146,7 @@ object Main extends App {
         if (mentionedIds.contains(selfId)) {
           val command = parseCommand(message.text)
           command match {
-            case ExecCommand(commandText) =>
+            case ExecCommand(commandText, lang) =>
               client.indicateTyping(message.channel)
               val answer = try {
                 val ec = getContext(lang)
@@ -157,15 +161,17 @@ object Main extends App {
               client.sendMessage(message.channel, answer)
               client.indicateTyping(message.channel)
               Thread.sleep(1000)
-              checkStatus(message.channel)
-            case StatusCommand =>
+              checkStatus(message.channel, lang)
+            case StatusCommand(lang) =>
               client.indicateTyping(message.channel)
-              checkStatus(message.channel)
+              checkStatus(message.channel, lang)
             case ResetCommand =>
               client.indicateTyping(message.channel)
-              destroyContext(lang)
-              client.sendMessage(message.channel, s"Done, new context: ${getContext(lang)}")
-            case CancelCommand =>
+              Seq("scala", "r", "python", "sql").foreach { lang =>
+                destroyContext(lang)
+                client.sendMessage(message.channel, s"Done, new $lang context: ${getContext(lang)}")
+              }
+            case CancelCommand(lang) =>
               client.indicateTyping(message.channel)
               client.sendMessage(message.channel, cancel(lang))
             case HelpCommand => client.sendMessage(message.channel, printHelp(message.user))
@@ -186,8 +192,12 @@ object Main extends App {
       |```
       |spark.range(10).count
       |```
-      |- Show status of last command: *$bot status*
-      |- Canceling a command like `Thread.sleep(100000)`: *$bot cancel*
+      |- Queries for other languages `r`, `python`, `sql` and `scala` as well.
+      |  Just replace `qq` by one of those words.
+      |- Show status of last command: *$bot status*. By default I check status of scala repl but
+      |  you can tell me the language like *$bot status python*.
+      |- Canceling a command like `Thread.sleep(100000)`: *$bot cancel*.
+      |  Add language at the end if you want cancel a command for specific language.
       |- If something goes wrong, just reset me: *$bot reset*
     """.stripMargin
   }
