@@ -33,7 +33,7 @@ object Main extends App {
   def parseCommand(text: String): Command = {
     val defaultLang = "scala"
     val status = """(\S+)\s+status\s*(scala|python|r|sql)?""".r
-    val qq = """^(\S+)\s+(qq|scala|python|r|sql)\s+```\s*(.*)\s*```""".r
+    val qq = """(?s)^(\S+)\s+(qq|scala|python|r|sql)\s+```(.*)```""".r
     val qqShort = """^(\S+)\s+(qq|scala|python|r|sql)\s+`(.*)`""".r
     val reset = """(\S+)\s+reset""".r
     val cancel = """(\S+)\s+cancel\s*(scala|python|r|sql)?""".r

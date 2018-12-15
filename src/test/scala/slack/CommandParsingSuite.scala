@@ -49,9 +49,16 @@ class CommandParsingSuite extends FunSuite {
   test("parse multiLine qq") {
     val text =
       s"""<@UESRZGZSQ> qq
-         |```spark.sql("show databases").show()```""".stripMargin
+         |```
+         |val databases = spark.sql("show databases")
+         |databases.show()
+         |```""".stripMargin
     val command = parseCommand(text)
-    assert(command == ExecCommand(s"""spark.sql("show databases").show()""", "scala"))
+    assert(command == ExecCommand(
+      """
+        |val databases = spark.sql("show databases")
+        |databases.show()
+        |""".stripMargin, "scala"))
   }
 
   test("parse multiLine sql") {
@@ -69,7 +76,10 @@ class CommandParsingSuite extends FunSuite {
          |spark.sql("show databases").show()
          |```""".stripMargin
     val command = parseCommand(text)
-    assert(command == ExecCommand(s"""spark.sql("show databases").show()""", "scala"))
+    assert(command == ExecCommand(
+      s"""
+         |spark.sql("show databases").show()
+         |""".stripMargin, "scala"))
   }
 
   test("reset") {
