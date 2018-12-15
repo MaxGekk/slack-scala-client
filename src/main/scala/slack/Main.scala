@@ -9,6 +9,7 @@ trait Command
 case object UnknowCommand extends Command
 case class ExecCommand(command: String) extends Command
 case object StatusCommand extends Command
+case object CancelCommand extends Command
 case object ResetCommand extends Command
 
 case class ExecutionContext(id: String, lastCommandId: Option[String])
@@ -34,11 +35,14 @@ object Main extends App {
     val qq = """^(\S+)\s+qq\s+```\s*(.*)\s*```""".r
     val qqShort = """^(\S+)\s+qq\s+`(.*)`""".r
     val reset = """(\S+)\s+reset""".r
+    val cancel = """(\S+)\s+cancel""".r
+
     text match {
       case status(_) => StatusCommand
       case qq(_, command) => ExecCommand(command)
       case qqShort(_, command) => ExecCommand(command)
       case reset(_) => ResetCommand
+      case cancel(_) => CancelCommand
       case _ => UnknowCommand
     }
   }
@@ -68,6 +72,21 @@ object Main extends App {
     }
   }
 
+  def cancel(language: String): String = {
+    contexts.get(language) match {
+      case None => s"Nothing to cancel for ${language}"
+      case Some(ExecutionContext(_, None)) => "Run a command before cancel it"
+      case Some(ExecutionContext(contextId, Some(commandId))) =>
+        try {
+          shard.command.cancel(clusterId, contextId, commandId)
+          s"The last command for ${language} has been canceled"
+        } catch {
+          case e: Exception =>
+            s"I got the exception ${e.getClass.getName}: ${e.getMessage}"
+        }
+    }
+  }
+
   def checkStatus(channel: String): Unit = {
     val answer = contexts.get(lang) match {
       case None => "I don't any clue what you want."
@@ -80,12 +99,12 @@ object Main extends App {
               status + "\n" + s"```${data}```"
             case CommandResult(_, status, ApiErrorResult(None, cause)) =>
               s"""$status
-                 |$cause
+                 |${cause.take(500) + " ..."}
                """.stripMargin
             case CommandResult(_, status, ApiErrorResult(Some(summary), cause)) =>
               s"""$status
                  |$summary
-                 |${cause.take(4).mkString("\n")}
+                 |${cause.take(500) + " ..."}
                """.stripMargin
             case CommandResult(_, status, ApiImageResult(fileName)) =>
               s"""$status
@@ -121,6 +140,7 @@ object Main extends App {
           val command = parseCommand(message.text)
           command match {
             case ExecCommand(commandText) =>
+              client.indicateTyping(message.channel)
               val answer = try {
                 val ec = getContext(lang)
                 val IdResult(commandId) = shard.command.execute(lang, clusterId, ec.id, commandText)
@@ -132,12 +152,19 @@ object Main extends App {
                   s"Can you do something with that? ${e.getClass.getName}: ${e.getMessage}"
               }
               client.sendMessage(message.channel, answer)
+              client.indicateTyping(message.channel)
               Thread.sleep(1000)
               checkStatus(message.channel)
-            case StatusCommand => checkStatus(message.channel)
+            case StatusCommand =>
+              client.indicateTyping(message.channel)
+              checkStatus(message.channel)
             case ResetCommand =>
+              client.indicateTyping(message.channel)
               destroyContext(lang)
               client.sendMessage(message.channel, s"Done, new context: ${getContext(lang)}")
+            case CancelCommand =>
+              client.indicateTyping(message.channel)
+              client.sendMessage(message.channel, cancel(lang))
             case _ =>
               client.sendMessage(message.channel, "What do you mean?")
           }

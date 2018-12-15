@@ -48,4 +48,11 @@ class CommandParsingSuite extends FunSuite {
       s"""<@UESRZGZSQ> reset""".stripMargin
     val command = parseCommand(text)
     assert(command == ResetCommand)
-  }}
+  }
+
+  test("cancel") {
+    val text = """<@UESRZGZSQ> cancel"""
+    val command = parseCommand(text)
+    assert(command == CancelCommand)
+  }
+}
