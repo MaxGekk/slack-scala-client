@@ -100,4 +100,9 @@ class CommandParsingSuite extends FunSuite {
     val command = parseCommand(text)
     assert(command == CancelCommand("r"))
   }
+
+  test("cut html") {
+    val res = Main.cutHtml("""<pre style="font-size:10p"></pre><pre style = 'font-size:10pt'>[1] 1</pre>""")
+    assert(res == "```[1] 1```")
+  }
 }

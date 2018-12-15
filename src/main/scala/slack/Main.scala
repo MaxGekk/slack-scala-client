@@ -94,6 +94,14 @@ object Main extends App {
     }
   }
 
+  def cutHtml(str: String): String = {
+    val rResp = """(?s)^<pre style="font-size:10p"></pre><pre style = 'font-size:10pt'>(.*)</pre>$""".r
+    str match {
+      case rResp(resp) => s"""```${resp}```"""
+      case _ => str
+    }
+  }
+
   def checkStatus(channel: String, lang: String): Unit = {
     val answer = contexts.get(lang) match {
       case None => "I don't any clue what you want."
@@ -103,7 +111,7 @@ object Main extends App {
           val res = shard.command.status(clusterId, contextId, commandId)
           res match {
             case CommandResult(_, status, ApiTextResult(data)) =>
-              status + "\n" + s"```${data}```"
+              status + "\n" + (if (lang == "r") cutHtml(data) else  s"```${data}```")
             case CommandResult(_, status, ApiErrorResult(None, cause)) =>
               s"""$status
                  |${cause.take(500) + " ..."}
