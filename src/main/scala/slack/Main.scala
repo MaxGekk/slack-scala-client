@@ -187,7 +187,7 @@ object Main extends App {
       |spark.range(10).count
       |```
       |- Show status of last command: *$bot status*
-      |- Canceling a command like Thread.sleep(100000): *$bot cancel*
+      |- Canceling a command like `Thread.sleep(100000)`: *$bot cancel*
       |- If something goes wrong, just reset me: *$bot reset*
     """.stripMargin
   }
