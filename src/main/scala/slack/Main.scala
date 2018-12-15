@@ -11,6 +11,7 @@ case class ExecCommand(command: String) extends Command
 case object StatusCommand extends Command
 case object CancelCommand extends Command
 case object ResetCommand extends Command
+case object HelpCommand extends Command
 
 case class ExecutionContext(id: String, lastCommandId: Option[String])
 
@@ -36,6 +37,7 @@ object Main extends App {
     val qqShort = """^(\S+)\s+qq\s+`(.*)`""".r
     val reset = """(\S+)\s+reset""".r
     val cancel = """(\S+)\s+cancel""".r
+    val help = """(\S+)\s+help""".r
 
     text match {
       case status(_) => StatusCommand
@@ -43,6 +45,7 @@ object Main extends App {
       case qqShort(_, command) => ExecCommand(command)
       case reset(_) => ResetCommand
       case cancel(_) => CancelCommand
+      case help(_) => HelpCommand
       case _ => UnknowCommand
     }
   }
@@ -165,11 +168,27 @@ object Main extends App {
             case CancelCommand =>
               client.indicateTyping(message.channel)
               client.sendMessage(message.channel, cancel(lang))
+            case HelpCommand => client.sendMessage(message.channel, printHelp(message.user))
             case _ =>
               client.sendMessage(message.channel, "What do you mean?")
           }
         }
       case others => system.log.info(others.toString)
     }
+  }
+
+  def printHelp(from: String): String = {
+    val bot = "@db"
+   s"""Welcome to my hugs, <@${from}>. Here is what I can do:
+      |- Answer to your quick questions: *$bot qq `1+1`*. I'll run it in Scala Repl.
+      |- Run Scala code:
+      |*$bot qq*
+      |```
+      |spark.range(10).count
+      |```
+      |- Show status of last command: *$bot status*
+      |- Canceling a command like Thread.sleep(100000): *$bot cancel*
+      |- If something goes wrong, just reset me: *$bot reset*
+    """.stripMargin
   }
 }
