@@ -3,6 +3,7 @@ package slack
 import akka.actor._
 import com.databricks._
 import com.typesafe.config.ConfigFactory
+import org.apache.commons.lang3.StringUtils
 import slack.rtm.SlackRtmClient
 
 trait Command
@@ -126,12 +127,7 @@ object Main extends App {
                  |image = ${fileName}
                """.stripMargin
             case CommandResult(_, status, table: ApiTableResult) =>
-              s"""$status
-                 |I received the table (truncated=${table.truncated}, isJsonSchema=${table.isJsonSchema})
-                 |${table.schema.toString()}
-                 |
-                 |${table.data.map(_.mkString(",")).mkString("\n")}
-               """.stripMargin
+              status + "\n" + "```" + showTable(table, 5) + "```"
             case CommandResult(_, status, _) => status
             case unknown => s"Unknown result = ${unknown.toString}"
           }
@@ -208,5 +204,71 @@ object Main extends App {
       |  Add language at the end if you want cancel a command for specific language.
       |- If something goes wrong, just reset me: *$bot reset*
     """.stripMargin
+  }
+
+  def stringHalfWidth(str: String): Int = {
+    val fullWidthRegex = ("""[""" +
+      // scalastyle:off nonascii
+      """\u1100-\u115F""" +
+      """\u2E80-\uA4CF""" +
+      """\uAC00-\uD7A3""" +
+      """\uF900-\uFAFF""" +
+      """\uFE10-\uFE19""" +
+      """\uFE30-\uFE6F""" +
+      """\uFF00-\uFF60""" +
+      """\uFFE0-\uFFE6""" +
+      // scalastyle:on nonascii
+      """]""").r
+
+    if (str == null) 0 else str.length + fullWidthRegex.findAllIn(str).size
+  }
+
+  def showTable(
+      table: ApiTableResult,
+      numRows: Int,
+      truncate: Int = 20): String = {
+    val header = table.schema.map(_.get("name").map(_.toString).getOrElse(""))
+    val tmpRows = header :: table.data.map(_.map(_.toString))
+
+    val rows = tmpRows.take(numRows + 1)
+
+    val sb = new StringBuilder
+    val numCols = header.length
+
+    // We set a minimum column width at '3'
+    val minimumColWidth = 3
+
+    // Initialise the width of each column to a minimum value
+    val colWidths = Array.fill(numCols)(minimumColWidth)
+
+    // Compute the width of each column
+    for (row <- rows) {
+      for ((cell, i) <- row.zipWithIndex) {
+        colWidths(i) = math.max(colWidths(i), stringHalfWidth(cell))
+      }
+    }
+
+    val paddedRows = rows.map { row =>
+      row.zipWithIndex.map { case (cell, i) =>
+        if (truncate > 0) {
+          StringUtils.leftPad(cell, colWidths(i) - stringHalfWidth(cell) + cell.length)
+        } else {
+          StringUtils.rightPad(cell, colWidths(i) - stringHalfWidth(cell) + cell.length)
+        }
+      }
+    }
+
+    // Create SeparateLine
+    val sep: String = colWidths.map("-" * _).addString(sb, "+", "+", "+\n").toString()
+
+    // column names
+    paddedRows.head.addString(sb, "|", "|", "|\n")
+    sb.append(sep)
+
+    // data
+    paddedRows.tail.foreach(_.addString(sb, "|", "|", "|\n"))
+    sb.append(sep)
+
+    sb.toString()
   }
 }

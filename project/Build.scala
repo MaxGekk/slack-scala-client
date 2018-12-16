@@ -60,9 +60,10 @@ object Dependencies {
   val jodaConvert = "org.joda" % "joda-convert" % "1.8.1" // https://stackoverflow.com/a/13856382/118587
 
   val libricks = "default" %% "libricks" % "0.8.3"
+  val commons = "org.apache.commons" % "commons-lang3" % "3.8.1"
 
   val akkaDependencies = Seq(akkaHttp)
-  val miscDependencies = Seq(playJson, scalaAsync, jodaConvert, libricks)
+  val miscDependencies = Seq(playJson, scalaAsync, jodaConvert, libricks, commons)
   val testDependencies = Seq(scalatest)
 
   val allDependencies = akkaDependencies ++ miscDependencies ++ testDependencies
