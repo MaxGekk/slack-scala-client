@@ -127,7 +127,7 @@ object Main extends App {
                  |image = ${fileName}
                """.stripMargin
             case CommandResult(_, status, table: ApiTableResult) =>
-              status + "\n" + "```" + showTable(table, 5) + "```"
+              status + "\n" + "```" + showTable(table, 8) + "```"
             case CommandResult(_, status, _) => status
             case unknown => s"Unknown result = ${unknown.toString}"
           }
@@ -268,6 +268,13 @@ object Main extends App {
     // data
     paddedRows.tail.foreach(_.addString(sb, "|", "|", "|\n"))
     sb.append(sep)
+
+    val hasMoreData = tmpRows.length - 1 > numRows
+    if (hasMoreData) {
+      // For Data that has more than "numRows" records
+      val rowsString = if (numRows == 1) "row" else "rows"
+      sb.append(s"only showing top $numRows $rowsString\n")
+    }
 
     sb.toString()
   }
