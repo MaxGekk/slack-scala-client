@@ -227,8 +227,12 @@ object Main extends App {
       table: ApiTableResult,
       numRows: Int,
       truncate: Int = 20): String = {
-    val header = table.schema.map(_.get("name").map(_.toString).getOrElse(""))
-    val tmpRows = header :: table.data.map(_.map(_.toString))
+    val header = table.schema
+      .map(_.get("name")
+        .map(Option(_).map(_.toString).getOrElse("null"))
+        .getOrElse(""))
+    val tmpRows = header :: table.data
+      .map(r => if (r == null) List() else r.map(Option(_).map(_.toString).getOrElse("null")))
 
     val rows = tmpRows.take(numRows + 1)
 
